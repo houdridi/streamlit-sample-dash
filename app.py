@@ -24,13 +24,117 @@ def generate_fake_data(n=100):
         'delivery_percentage': np.random.uniform(0.2, 0.8, n),
         'month': np.random.choice(['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
                                   n),
+        'region': np.random.choice(['Montréal', 'Québec', 'Laval', 'Gatineau', 'Sherbrooke'], n),
         'capacity': np.random.randint(30, 150, n)
     })
+    # Dictionary of coordinates for Québec cities
+    QUEBEC_CITIES = {
+        'Montréal': {'lat': 45.5017, 'lon': -73.5673},
+        'Québec': {'lat': 46.8139, 'lon': -71.2080},
+        'Laval': {'lat': 45.5867, 'lon': -73.7242},
+        'Gatineau': {'lat': 45.4765, 'lon': -75.7013},
+        'Sherbrooke': {'lat': 45.4040, 'lon': -71.8929}
+    }
+
+    # Map the coordinates based on the 'region' column
+    data['latitude'] = data['region'].map(lambda x: QUEBEC_CITIES.get(x, {}).get('lat'))
+    data['longitude'] = data['region'].map(lambda x: QUEBEC_CITIES.get(x, {}).get('lon'))
+
     return data
 
 
 def create_charts_page(data):
     st.header("📊 Analyses et Visualisations Avancées")
+
+    # Nouvelle section : Carte interactive du Québec
+    st.subheader("📍 Carte des Restaurants par Région")
+
+    # Coordonnées des villes québécoises
+    if data is None:
+        st.error("No data provided!")
+        return
+
+    if 'region' not in data.columns:
+        st.error("Error: 'region' column is missing!")
+        return
+
+    # Dictionary of coordinates for Québec cities
+    QUEBEC_CITIES = {
+        'Montréal': {'lat': 45.5017, 'lon': -73.5673},
+        'Québec': {'lat': 46.8139, 'lon': -71.2080},
+        'Laval': {'lat': 45.5867, 'lon': -73.7242},
+        'Gatineau': {'lat': 45.4765, 'lon': -75.7013},
+        'Sherbrooke': {'lat': 45.4040, 'lon': -71.8929}
+    }
+
+    data['latitude'] = data['region'].map(lambda x: QUEBEC_CITIES.get(x, {}).get('lat'))
+    data['longitude'] = data['region'].map(lambda x: QUEBEC_CITIES.get(x, {}).get('lon'))
+
+    st.write("Data after mapping:", data.head())
+
+    # Calculer les statistiques par région
+    region_stats = data.groupby('region').agg({
+        'revenue': ['mean', 'count'],
+        'satisfaction': 'mean',
+        'latitude': 'first',
+        'longitude': 'first'
+    }).reset_index()
+
+    region_stats.columns = ['region', 'avg_revenue', 'restaurant_count', 'avg_satisfaction', 'latitude', 'longitude']
+
+    # Créer la carte
+    fig_map = go.Figure()
+
+    # Ajouter les marqueurs pour chaque ville
+    for _, row in region_stats.iterrows():
+        fig_map.add_trace(go.Scattermapbox(
+            lat=[row['latitude']],
+            lon=[row['longitude']],
+            mode='markers',
+            marker=go.scattermapbox.Marker(
+                size=row['restaurant_count']*2,
+                color=row['avg_revenue'],
+                colorscale='Viridis',
+                showscale=False,
+                colorbar=dict(title="Revenu moyen")
+            ),
+            text=f"{row['region']}<br>" +
+                 f"Nombre de restaurants: {row['restaurant_count']}<br>" +
+                 f"Revenu moyen: ${row['avg_revenue']:,.2f}<br>" +
+                 f"Satisfaction: {row['avg_satisfaction']:.2f}/5",
+            hoverinfo='text',
+            name=row['region']
+        ))
+
+    # Configurer la mise en page de la carte
+    fig_map.update_layout(
+        mapbox_style="carto-positron",
+        mapbox=dict(
+            center=dict(lat=46.0, lon=-73.0),  # Centre du Québec
+            zoom=6
+        ),
+        height=600,
+        margin={"r":0,"t":0,"l":0,"b":0}
+    )
+
+    # Afficher la carte
+    st.plotly_chart(fig_map, use_container_width=False)
+
+
+    # with col1:
+    #     st.metric("Région la plus rentable",
+    #               region_stats.loc[region_stats['avg_revenue'].idxmax(), 'region'],
+    #               f"${region_stats['avg_revenue'].max():,.2f}")
+    #
+    # with col2:
+    #     st.metric("Plus grand nombre de restaurants",
+    #               region_stats.loc[region_stats['restaurant_count'].idxmax(), 'region'],
+    #               region_stats['restaurant_count'].max())
+    #
+    # with col3:
+    #     st.metric("Meilleure satisfaction client",
+    #               region_stats.loc[region_stats['avg_satisfaction'].idxmax(), 'region'],
+    #               f"{region_stats['avg_satisfaction'].max():.2f}/5")
 
     # 1. Scatter plot: Revenue vs Satisfaction
     st.subheader("Relation entre le revenu et la satisfaction client")
@@ -162,6 +266,7 @@ def main():
 
     # Chargement des données
     data = load_and_prepare_data()
+    print(data)
     if data is None:
         st.error("❌ Erreur lors du chargement des données.")
         return
