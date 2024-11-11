@@ -70,8 +70,6 @@ def create_charts_page(data):
     data['latitude'] = data['region'].map(lambda x: QUEBEC_CITIES.get(x, {}).get('lat'))
     data['longitude'] = data['region'].map(lambda x: QUEBEC_CITIES.get(x, {}).get('lon'))
 
-    st.write("Data after mapping:", data.head())
-
     # Calculer les statistiques par région
     region_stats = data.groupby('region').agg({
         'revenue': ['mean', 'count'],
